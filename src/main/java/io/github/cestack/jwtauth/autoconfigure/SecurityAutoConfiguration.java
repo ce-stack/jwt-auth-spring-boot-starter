@@ -10,8 +10,10 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
+import io.github.cestack.jwtauth.config.JwtProperties;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 @AutoConfiguration
+@AutoConfigureAfter(JwtAutoConfiguration.class)
 public class SecurityAutoConfiguration {
 
     @Bean
@@ -25,7 +27,8 @@ public class SecurityAutoConfiguration {
     @ConditionalOnMissingBean(SecurityFilterChain.class)
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            JwtAuthenticationFilter jwtFilter
+            JwtAuthenticationFilter jwtFilter,
+            JwtProperties properties
     ) throws Exception {
 
         return http
@@ -39,8 +42,10 @@ public class SecurityAutoConfiguration {
 
                 .authorizeHttpRequests(auth ->
                         auth
-                                .requestMatchers("/auth/**").permitAll()
-                                .anyRequest().authenticated()
+                                .requestMatchers(properties.getPublicPaths())
+                                .permitAll()
+                                .anyRequest()
+                                .authenticated()
                 )
 
                 .addFilterBefore(

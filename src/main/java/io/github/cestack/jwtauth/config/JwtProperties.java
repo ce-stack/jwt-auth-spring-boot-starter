@@ -6,6 +6,37 @@ import java.time.Duration;
 
 public class JwtProperties {
 
+
+    private String header = "Authorization";
+    private String tokenPrefix = "Bearer ";
+    private String[] publicPaths = {"/auth/**"};
+
+    public String getHeader() {
+        return header;
+    }
+
+    public void setHeader(String header) {
+        this.header = header;
+    }
+
+    public String getTokenPrefix() {
+        return tokenPrefix;
+    }
+
+    public void setTokenPrefix(String tokenPrefix) {
+        this.tokenPrefix = tokenPrefix;
+    }
+
+    public String[] getPublicPaths() {
+        return publicPaths;
+    }
+
+    public void setPublicPaths(String[] publicPaths) {
+        this.publicPaths = publicPaths;
+    }
+
+
+
     private String secret;
 
     private Duration accessTokenExpiration = Duration.ofMinutes(15);
