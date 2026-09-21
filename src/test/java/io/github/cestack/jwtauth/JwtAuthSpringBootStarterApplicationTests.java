@@ -1,4 +1,4 @@
-package io.github.ce_stack.jwt_auth_spring_boot_starter;
+package io.github.cestack.jwtauth;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
