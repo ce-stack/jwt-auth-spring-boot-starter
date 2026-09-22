@@ -22,10 +22,11 @@ public class JwtAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AuthService authService(AuthenticationManager authenticationManager,JwtService jwtService) {
+    public AuthService authService(AuthenticationManager authenticationManager,JwtService jwtService , TokenRevocationStore tokenRevocationStore) {
         return new AuthService(
                 authenticationManager,
-                jwtService
+                jwtService,
+                tokenRevocationStore
         );
     }
 
