@@ -25,17 +25,18 @@ public class JwtAutoConfiguration {
     @Bean
     @ConditionalOnBean(UserDetailsService.class)
     @ConditionalOnMissingBean
-    public JwtAuthenticationFilter jwtAuthenticationFilter(JwtService jwtService,UserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter jwtAuthenticationFilter(JwtService jwtService,UserDetailsService userDetailsService,JwtProperties properties,TokenRevocationStore tokenRevocationStore) {
         return new JwtAuthenticationFilter(
                 jwtService,
-                userDetailsService
+                userDetailsService,
+                properties,
+                tokenRevocationStore
         );
     }
 
     @Bean
     @ConditionalOnMissingBean(TokenRevocationStore.class)
     public TokenRevocationStore tokenRevocationStore() {
-
         return new InMemoryTokenRevocationStore();
     }
 }

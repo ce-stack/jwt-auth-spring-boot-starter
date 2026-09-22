@@ -1,6 +1,8 @@
 package io.github.cestack.jwtauth.filter;
 
+import io.github.cestack.jwtauth.config.JwtProperties;
 import io.github.cestack.jwtauth.service.JwtService;
+import io.github.cestack.jwtauth.spi.TokenRevocationStore;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,39 +20,68 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final TokenRevocationStore tokenRevocationStore;
+    private final JwtProperties properties;
 
     public JwtAuthenticationFilter(
             JwtService jwtService,
-            UserDetailsService userDetailsService
+            UserDetailsService userDetailsService,
+            JwtProperties properties,
+            TokenRevocationStore tokenRevocationStore
     ) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.properties = properties;
+        this.tokenRevocationStore = tokenRevocationStore;
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
 
-        String authHeader = request.getHeader("Authorization");
+        String authHeader =
+                request.getHeader(properties.getHeader());
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (authHeader == null ||
+                !authHeader.startsWith(properties.getTokenPrefix())) {
+
             filterChain.doFilter(request, response);
             return;
         }
 
-        String token = authHeader.substring(7);
+        String token = authHeader.substring(
+                properties.getTokenPrefix().length()
+        );
 
-        if (!jwtService.isValid(token)) {
+        if (!jwtService.isValid(token) ||
+                !jwtService.isAccessToken(token)) {
+
             filterChain.doFilter(request, response);
             return;
         }
 
-        String username = jwtService.extractSubject(token);
+        String tokenId = jwtService.extractTokenId(token);
+
+        if (tokenRevocationStore.isRevoked(tokenId)) {
+
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String username =
+                jwtService.extractSubject(token);
 
         if (username != null &&
-                SecurityContextHolder.getContext().getAuthentication() == null) {
+                SecurityContextHolder
+                        .getContext()
+                        .getAuthentication() == null) {
 
             UserDetails userDetails =
-                    userDetailsService.loadUserByUsername(username);
+                    userDetailsService
+                            .loadUserByUsername(username);
 
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
@@ -64,11 +95,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             .buildDetails(request)
             );
 
-            SecurityContextHolder.getContext()
+            SecurityContextHolder
+                    .getContext()
                     .setAuthentication(authentication);
         }
 
         filterChain.doFilter(request, response);
-
     }
 }
