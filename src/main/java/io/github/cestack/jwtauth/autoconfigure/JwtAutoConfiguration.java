@@ -10,7 +10,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.core.userdetails.UserDetailsService;
-
+import io.github.cestack.jwtauth.spi.TokenRevocationStore;
+import io.github.cestack.jwtauth.token.InMemoryTokenRevocationStore;
 @AutoConfiguration
 @EnableConfigurationProperties(JwtProperties.class)
 public class JwtAutoConfiguration {
@@ -24,15 +25,17 @@ public class JwtAutoConfiguration {
     @Bean
     @ConditionalOnBean(UserDetailsService.class)
     @ConditionalOnMissingBean
-    public JwtAuthenticationFilter jwtAuthenticationFilter(
-            JwtService jwtService,
-            UserDetailsService userDetailsService
-    ) {
+    public JwtAuthenticationFilter jwtAuthenticationFilter(JwtService jwtService,UserDetailsService userDetailsService) {
         return new JwtAuthenticationFilter(
                 jwtService,
                 userDetailsService
         );
     }
 
+    @Bean
+    @ConditionalOnMissingBean(TokenRevocationStore.class)
+    public TokenRevocationStore tokenRevocationStore() {
 
+        return new InMemoryTokenRevocationStore();
+    }
 }
