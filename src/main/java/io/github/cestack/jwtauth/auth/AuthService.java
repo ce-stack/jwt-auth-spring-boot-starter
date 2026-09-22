@@ -8,6 +8,7 @@ import io.github.cestack.jwtauth.spi.TokenRevocationStore;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import io.github.cestack.jwtauth.dto.LogoutRequest;
 
 public class AuthService {
 
@@ -86,5 +87,58 @@ public class AuthService {
                 newRefreshToken,
                 "Bearer"
         );
+    }
+
+    public void logout(LogoutRequest request) {
+
+        boolean hasToken = false;
+
+        if (request.accessToken() != null &&
+                !request.accessToken().isBlank()) {
+
+            hasToken = true;
+
+            String accessToken = request.accessToken();
+
+            if (!jwtService.isValid(accessToken) ||
+                    !jwtService.isAccessToken(accessToken)) {
+
+                throw new IllegalArgumentException(
+                        "Invalid access token"
+                );
+            }
+
+            tokenRevocationStore.revoke(
+                    jwtService.extractTokenId(accessToken),
+                    jwtService.extractExpiration(accessToken)
+            );
+        }
+
+        if (request.refreshToken() != null &&
+                !request.refreshToken().isBlank()) {
+
+            hasToken = true;
+
+            String refreshToken = request.refreshToken();
+
+            if (!jwtService.isValid(refreshToken) ||
+                    !jwtService.isRefreshToken(refreshToken)) {
+
+                throw new IllegalArgumentException(
+                        "Invalid refresh token"
+                );
+            }
+
+            tokenRevocationStore.revoke(
+                    jwtService.extractTokenId(refreshToken),
+                    jwtService.extractExpiration(refreshToken)
+            );
+        }
+
+        if (!hasToken) {
+            throw new IllegalArgumentException(
+                    "At least one token is required"
+            );
+        }
     }
 }
