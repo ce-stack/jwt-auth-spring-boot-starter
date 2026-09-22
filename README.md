@@ -1,10 +1,82 @@
 # JWT Auth Spring Boot Starter
 
-A reusable JWT security starter for Spring Boot applications.
+Reusable JWT authentication and Spring Security auto-configuration for Spring Boot applications.
 
-Current version: `0.1.0`
+Current development release target: `0.2.1`
 
-This starter removes the repeated JWT security setup that is normally copied from project to project. You keep your own user model, database, repositories, and `UserDetailsService`.
+Repository:
+
+```text
+https://github.com/ce-stack/jwt-auth-spring-boot-starter
+```
+
+## Why this starter exists
+
+JWT authentication in Spring Boot usually requires repeating the same infrastructure in every project:
+
+```text
+JWT utility/service
+JWT signing
+JWT parsing
+JWT validation
+Bearer token extraction
+JWT authentication filter
+SecurityFilterChain
+PasswordEncoder
+AuthenticationManager
+SecurityContext setup
+Stateless session configuration
+Login flow
+Refresh flow
+Logout flow
+Token revocation
+Registration flow
+```
+
+This starter provides those reusable parts.
+
+Your application keeps control of the parts that are different from one project to another:
+
+```text
+User entity
+User repository
+Database
+UserDetailsService
+RegistrationHandler
+Roles and permissions
+Application-specific business rules
+```
+
+## What the starter provides
+
+| Feature | Included |
+|---|---|
+| Spring Security auto-configuration | Yes |
+| Stateless authentication | Yes |
+| BCrypt `PasswordEncoder` | Yes |
+| `AuthenticationManager` | Yes |
+| JWT access token generation | Yes |
+| JWT refresh token generation | Yes |
+| JWT parsing | Yes |
+| JWT signature validation | Yes |
+| JWT expiration validation | Yes |
+| Access/refresh token type validation | Yes |
+| Unique JWT ID (`jti`) | Yes |
+| Bearer token extraction | Yes |
+| JWT authentication filter | Yes |
+| `SecurityContext` population | Yes |
+| Configurable public paths | Yes |
+| Login endpoint | Yes |
+| Register endpoint | Yes |
+| Refresh endpoint | Yes |
+| Logout endpoint | Yes |
+| Refresh token rotation | Yes |
+| Token revocation | Yes |
+| Default in-memory revocation store | Yes |
+| Custom revocation store support | Yes |
+| User persistence | Application-specific |
+| `UserDetailsService` | Application-specific |
+| Registration persistence | Application-specific |
 
 ## Installation
 
@@ -14,26 +86,32 @@ Add the dependency to your Maven project:
 <dependency>
     <groupId>io.github.ce-stack</groupId>
     <artifactId>jwt-auth-spring-boot-starter</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.1</version>
 </dependency>
 ```
 
-The package is published on Maven Central, so no extra repository configuration is required.
+You do not need to add JJWT manually. The starter already includes the JWT dependencies it needs.
 
 ## Configuration
 
-Add the JWT settings to `application.properties`:
+Add the following to `application.properties`:
 
 ```properties
 jwt-auth.secret=12345678901234567890123456789012
 jwt-auth.access-token-expiration=15m
 jwt-auth.refresh-token-expiration=7d
-jwt-auth.public-paths=/auth/**,/public/**
+jwt-auth.public-paths=/auth/**
 ```
 
-Use a secret with at least 32 bytes.
+Use a strong secret of at least 32 bytes.
 
-You can also use YAML:
+You can expose more public endpoints when needed:
+
+```properties
+jwt-auth.public-paths=/auth/**,/public/**,/swagger-ui/**,/v3/api-docs/**
+```
+
+YAML is also supported:
 
 ```yaml
 jwt-auth:
@@ -45,103 +123,80 @@ jwt-auth:
     - /public/**
 ```
 
-## What the starter provides
+## What your application must provide
 
-| Feature | Included |
-|---|---|
-| JWT token generation | Yes |
-| JWT token parsing | Yes |
-| JWT token validation | Yes |
-| Access token expiration handling | Yes |
-| Refresh token generation | Yes |
-| Bearer token extraction | Yes |
-| JWT authentication filter | Yes |
-| Spring Security filter registration | Yes |
-| `SecurityContext` population | Yes |
-| Stateless session configuration | Yes |
-| BCrypt `PasswordEncoder` bean | Yes |
-| Configurable public endpoints | Yes |
-| Auto-configuration | Yes |
-| Login endpoint | Not yet |
-| Register endpoint | Not yet |
-| Logout endpoint | Not yet |
-| Refresh endpoint | Not yet |
-| User database integration | Application-specific |
+The starter intentionally does not decide how users are stored.
 
-## What you no longer need to create in every project
-
-Without this starter, a typical JWT project usually repeats:
+Your application provides:
 
 ```text
-JwtUtils
-JwtAuthenticationFilter
-SecurityConfig
-PasswordEncoder configuration
-JWT parsing logic
-JWT validation logic
-Bearer header handling
-SecurityContext setup
-Stateless session configuration
-```
-
-With this starter, these parts are already provided.
-
-Your application remains responsible for:
-
-```text
+UserDetailsService
+RegistrationHandler
 User entity
 User repository
 Database
-UserDetailsService
-Login business logic
-Registration business logic
-Logout business logic
-Refresh endpoint
-Roles and permissions specific to your application
+Application-specific roles and authorities
 ```
 
-## Required UserDetailsService
+This allows the starter to work with different persistence strategies such as JPA, JDBC, MongoDB, external identity stores, in-memory users, or custom repositories.
 
-The starter does not define how users are stored.
+## Minimal test setup
 
-Every project can have a different user table, entity, repository, username field, email field, role model, or database.
-
-Your application only needs to expose a normal Spring Security `UserDetailsService`.
-
-Example:
+For a quick test, you can use an in-memory user store.
 
 ```java
-package com.example.demo.security;
+package com.example.demo.config;
 
+import io.github.cestack.jwtauth.spi.RegistrationHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 
 @Configuration
-public class UserConfiguration {
+public class TestAuthConfig {
 
     @Bean
-    public UserDetailsService userDetailsService() {
+    public InMemoryUserDetailsManager userDetailsService() {
+        return new InMemoryUserDetailsManager();
+    }
 
-        return new InMemoryUserDetailsManager(
-                User.withUsername("admin")
-                        .password("{noop}123456")
-                        .roles("USER")
-                        .build()
-        );
+    @Bean
+    public RegistrationHandler registrationHandler(
+            InMemoryUserDetailsManager users
+    ) {
+        return (username, encodedPassword, attributes) -> {
+
+            if (users.userExists(username)) {
+                throw new IllegalArgumentException("User already exists");
+            }
+
+            UserDetails user = User.builder()
+                    .username(username)
+                    .password(encodedPassword)
+                    .roles("USER")
+                    .build();
+
+            users.createUser(user);
+
+            return user;
+        };
     }
 }
 ```
 
-In a real application, replace the in-memory implementation with your own repository.
+This is enough to test the built-in register, login, refresh, logout, and JWT authentication flows.
 
-Example:
+## Real application example
+
+Example `UserDetailsService`:
 
 ```java
 @Bean
-public UserDetailsService userDetailsService(UserRepository userRepository) {
+public UserDetailsService userDetailsService(
+        UserRepository userRepository
+) {
     return username -> userRepository
             .findByUsername(username)
             .orElseThrow(() ->
@@ -150,7 +205,307 @@ public UserDetailsService userDetailsService(UserRepository userRepository) {
 }
 ```
 
-## Using JwtService
+Example `RegistrationHandler`:
+
+```java
+@Bean
+public RegistrationHandler registrationHandler(
+        UserRepository userRepository
+) {
+    return (username, encodedPassword, attributes) -> {
+
+        User user = new User();
+
+        user.setUsername(username);
+        user.setPassword(encodedPassword);
+
+        userRepository.save(user);
+
+        return user;
+    };
+}
+```
+
+Your returned user object must be usable as Spring Security `UserDetails`.
+
+The starter passes an already encoded password to `RegistrationHandler`.
+
+## Built-in authentication endpoints
+
+```text
+POST /auth/register
+POST /auth/login
+POST /auth/refresh
+POST /auth/logout
+```
+
+`POST /auth/register` is created when your application provides a `RegistrationHandler`.
+
+## Register
+
+```http
+POST /auth/register
+Content-Type: application/json
+```
+
+```json
+{
+  "username": "amir@gmail.com",
+  "password": "123456",
+  "attributes": {
+    "firstName": "Amir"
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "accessToken": "eyJhbGciOi...",
+  "refreshToken": "eyJhbGciOi...",
+  "tokenType": "Bearer"
+}
+```
+
+Flow:
+
+```text
+Request
+  ↓
+PasswordEncoder
+  ↓
+RegistrationHandler supplied by your application
+  ↓
+Your application stores the user
+  ↓
+Access token generated
+  ↓
+Refresh token generated
+```
+
+## Login
+
+```http
+POST /auth/login
+Content-Type: application/json
+```
+
+```json
+{
+  "username": "amir@gmail.com",
+  "password": "123456"
+}
+```
+
+Response:
+
+```json
+{
+  "accessToken": "eyJhbGciOi...",
+  "refreshToken": "eyJhbGciOi...",
+  "tokenType": "Bearer"
+}
+```
+
+Flow:
+
+```text
+Request
+  ↓
+AuthenticationManager
+  ↓
+Your UserDetailsService
+  ↓
+Spring Security verifies the password
+  ↓
+Access token generated
+  ↓
+Refresh token generated
+```
+
+## Protected endpoints
+
+Any endpoint that is not configured as public requires authentication.
+
+Example:
+
+```java
+package com.example.demo.controller;
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class TestController {
+
+    @GetMapping("/api/hello")
+    public String hello() {
+        return "JWT WORKING";
+    }
+}
+```
+
+Without an access token:
+
+```http
+GET /api/hello
+```
+
+the request is rejected.
+
+With an access token:
+
+```http
+GET /api/hello
+Authorization: Bearer YOUR_ACCESS_TOKEN
+```
+
+the request is authenticated.
+
+Internally:
+
+```text
+Authorization header
+  ↓
+Bearer token extraction
+  ↓
+JWT validation
+  ↓
+Require token type = ACCESS
+  ↓
+Check token revocation
+  ↓
+Read JWT subject
+  ↓
+Load user through UserDetailsService
+  ↓
+Create Spring Security Authentication
+  ↓
+Populate SecurityContext
+  ↓
+Continue the request
+```
+
+## Refresh token flow
+
+```http
+POST /auth/refresh
+Content-Type: application/json
+```
+
+```json
+{
+  "refreshToken": "YOUR_REFRESH_TOKEN"
+}
+```
+
+Response:
+
+```json
+{
+  "accessToken": "NEW_ACCESS_TOKEN",
+  "refreshToken": "NEW_REFRESH_TOKEN",
+  "tokenType": "Bearer"
+}
+```
+
+The starter uses refresh token rotation.
+
+```text
+Validate refresh token
+  ↓
+Require token type = REFRESH
+  ↓
+Check revocation status
+  ↓
+Revoke old refresh token
+  ↓
+Generate new access token
+  ↓
+Generate new refresh token
+```
+
+A refresh token that has already been rotated cannot be reused.
+
+## Logout
+
+```http
+POST /auth/logout
+Content-Type: application/json
+```
+
+```json
+{
+  "accessToken": "YOUR_ACCESS_TOKEN",
+  "refreshToken": "YOUR_REFRESH_TOKEN"
+}
+```
+
+Successful response:
+
+```text
+204 No Content
+```
+
+The starter revokes the supplied tokens until their expiration time.
+
+After logout:
+
+```text
+revoked access token -> rejected
+revoked refresh token -> rejected
+```
+
+## Token structure
+
+Generated tokens include:
+
+```text
+sub   username
+jti   unique token ID
+type  ACCESS or REFRESH
+iat   issued-at time
+exp   expiration time
+```
+
+`type` prevents a refresh token from being accepted as an access token.
+
+`jti` allows an individual token to be revoked.
+
+## Token revocation store
+
+The starter provides:
+
+```text
+InMemoryTokenRevocationStore
+```
+
+It requires no additional setup and is useful for local development, testing, and single-instance applications.
+
+The extension point is:
+
+```java
+TokenRevocationStore
+```
+
+You can provide another implementation such as Redis, a database, or a distributed cache.
+
+If your application provides its own `TokenRevocationStore` bean, the starter backs off from the default in-memory implementation.
+
+### Production behavior
+
+The default in-memory revocation store:
+
+```text
+exists only in the current application instance
+is cleared when the application restarts
+is not shared between multiple application instances
+```
+
+For distributed or persistent deployments, use a shared revocation store such as Redis or a database.
+
+## Using JwtService directly
 
 The starter exposes `JwtService` as a Spring bean.
 
@@ -167,17 +522,15 @@ public class TokenService {
         this.jwtService = jwtService;
     }
 
-    public String createToken(String username) {
+    public String createAccessToken(String username) {
         return jwtService.generateAccessToken(username);
     }
 }
 ```
 
-You can also add custom claims:
+Custom claims:
 
 ```java
-import java.util.Map;
-
 String token = jwtService.generateAccessToken(
         "amir",
         Map.of(
@@ -187,161 +540,178 @@ String token = jwtService.generateAccessToken(
 );
 ```
 
-## Creating a refresh token
+Generate refresh token:
 
 ```java
 String refreshToken = jwtService.generateRefreshToken("amir");
 ```
 
-## Reading the token subject
+Read subject:
 
 ```java
 String username = jwtService.extractSubject(token);
 ```
 
-## Validating a token
+Validate token:
 
 ```java
 boolean valid = jwtService.isValid(token);
 ```
 
-## Example controller
+Check token type:
 
 ```java
-package com.example.demo.controller;
-
-import io.github.cestack.jwtauth.service.JwtService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-@RestController
-public class DemoController {
-
-    private final JwtService jwtService;
-
-    public DemoController(JwtService jwtService) {
-        this.jwtService = jwtService;
-    }
-
-    @GetMapping("/public/token")
-    public String token() {
-        return jwtService.generateAccessToken("admin");
-    }
-
-    @GetMapping("/private/test")
-    public String privateEndpoint() {
-        return "JWT authentication is working";
-    }
-}
+boolean access = jwtService.isAccessToken(token);
+boolean refresh = jwtService.isRefreshToken(token);
 ```
 
-Because `/public/**` is configured as public:
+## Auto-configuration
 
-```properties
-jwt-auth.public-paths=/auth/**,/public/**
-```
-
-you can call:
+The starter separates responsibilities into three auto-configuration classes.
 
 ```text
-GET /public/token
+JwtAutoConfiguration
+  ↓
+JwtProperties
+JwtService
+TokenRevocationStore
+JwtAuthenticationFilter
+
+SecurityAutoConfiguration
+  ↓
+PasswordEncoder
+AuthenticationManager
+SecurityFilterChain
+
+AuthAutoConfiguration
+  ↓
+AuthService
+AuthController
+RegistrationService
+RegistrationController
 ```
 
-Then use the returned token:
+Spring Boot loads these automatically when the dependency is present.
 
-```http
-Authorization: Bearer YOUR_TOKEN
-```
+You do not need to component-scan the starter package.
 
-when calling:
+## What you no longer need to implement
+
+Typical repeated authentication code removed by the starter:
 
 ```text
-GET /private/test
-```
-
-The starter will:
-
-```text
-Read the Authorization header
-Extract the Bearer token
-Validate the JWT
-Read the subject
-Load the user through your UserDetailsService
-Create the Spring Security Authentication object
-Store it in SecurityContext
-Continue the request
-```
-
-## Default security behavior
-
-The starter configures Spring Security as stateless.
-
-Protected requests are expected to send:
-
-```http
-Authorization: Bearer eyJhbGciOi...
-```
-
-Public endpoints can be changed from configuration:
-
-```properties
-jwt-auth.public-paths=/auth/**,/public/**,/swagger-ui/**,/v3/api-docs/**
-```
-
-## Override support
-
-The starter uses Spring Boot auto-configuration.
-
-If your application provides its own compatible bean, Spring can use your custom implementation instead of the starter default.
-
-## Current scope of version 0.1.0
-
-Version `0.1.0` focuses on JWT infrastructure.
-
-It does not yet provide complete authentication endpoints.
-
-The application still implements:
-
-```text
-POST /auth/login
-POST /auth/register
-POST /auth/logout
-POST /auth/refresh
-```
-
-## Planned version 0.2.0
-
-Planned features:
-
-```text
-Built-in login endpoint
-Built-in register flow through a project-provided registration handler
-Built-in logout endpoint
-Built-in refresh endpoint
+JwtUtils
+JWT signing
+JWT parsing
+JWT validation
+Access/refresh token distinction
+JwtAuthenticationFilter
+Bearer header handling
+SecurityFilterChain
+PasswordEncoder configuration
+AuthenticationManager configuration
+SecurityContext setup
+Stateless session configuration
+Login controller
+Login service
+Refresh endpoint
 Refresh token rotation
-Refresh token revocation
-Token type validation
-Reusable token revocation store
-Default in-memory revocation implementation
-Extension point for Redis or database-backed revocation
+Logout endpoint
+Token revocation
+Registration controller
+Registration flow
 ```
 
-The goal is for most applications to provide only:
+Your project focuses on:
 
 ```text
+User
+UserRepository
 UserDetailsService
 RegistrationHandler
-Application-specific user model and repository
+Roles
+Permissions
+Application business rules
 ```
 
-while the starter handles the rest of the authentication flow.
+## Expected developer experience
+
+Typical setup:
+
+```text
+1. Add one Maven dependency
+2. Configure jwt-auth properties
+3. Provide UserDetailsService
+4. Provide RegistrationHandler
+5. Run the application
+6. Register or login
+7. Use the returned access token
+8. Refresh when needed
+9. Logout to revoke tokens
+```
+
+Architecture:
+
+```text
+Spring Boot application
+        +
+jwt-auth-spring-boot-starter
+        +
+application.properties
+        +
+UserDetailsService
+        +
+RegistrationHandler
+        ↓
+JWT authentication flow ready
+```
+
+## What the starter does not control
+
+The starter intentionally leaves these concerns to the consuming application:
+
+```text
+database technology
+User entity structure
+repository design
+email verification
+account activation
+password reset
+MFA
+tenant rules
+organization rules
+application-specific roles
+application-specific authorization
+profile data
+business validation
+```
+
+## Current limitations
+
+The current implementation uses the application's/default exception handling for authentication flow exceptions.
+
+Applications that need a specific JSON error contract can provide their own exception handling.
+
+The default token revocation store is in-memory and should be replaced for multi-instance production deployments.
+
+## Compatibility
+
+Current baseline:
+
+```text
+Java 17
+Spring Boot 4.0.x
+Spring Security supplied by Spring Boot
+```
+
+Test the starter with your exact Spring Boot version before production deployment.
 
 ## Package coordinates
 
 ```text
 Group ID:    io.github.ce-stack
 Artifact ID: jwt-auth-spring-boot-starter
-Version:     0.1.0
+Version:     0.2.1
 ```
 
 ## Source code
