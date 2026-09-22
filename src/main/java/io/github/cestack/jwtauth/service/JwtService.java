@@ -70,7 +70,7 @@ public class JwtService {
                 .signWith(getSigningKey())
                 .compact();
     }
-    
+
     public Claims extractClaims(String token) {
 
         return Jwts.parser()
