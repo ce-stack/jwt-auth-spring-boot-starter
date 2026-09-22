@@ -12,6 +12,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import io.github.cestack.jwtauth.config.JwtProperties;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 @AutoConfiguration
 @AutoConfigureAfter(JwtAutoConfiguration.class)
 public class SecurityAutoConfiguration {
@@ -54,5 +56,12 @@ public class SecurityAutoConfiguration {
                 )
 
                 .build();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(AuthenticationManager.class)
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration
+    ) throws Exception {
+        return configuration.getAuthenticationManager();
     }
 }
