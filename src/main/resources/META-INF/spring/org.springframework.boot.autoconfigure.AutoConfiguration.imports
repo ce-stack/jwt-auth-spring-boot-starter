@@ -1,2 +1,3 @@
 io.github.cestack.jwtauth.autoconfigure.JwtAutoConfiguration
 io.github.cestack.jwtauth.autoconfigure.SecurityAutoConfiguration
+io.github.cestack.jwtauth.autoconfigure.AuthAutoConfiguration
